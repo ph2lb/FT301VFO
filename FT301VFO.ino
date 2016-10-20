@@ -34,6 +34,8 @@
  * TODO LIST : 
  *  - add more sourcode comment
  *  - add debounce for the keys 
+ *  - harden the rotary switch (sometimes strange behaviour due to timing
+ *    isues (current no interrupt).
  * ------------------------------------------------------------------------ 
  */
 
