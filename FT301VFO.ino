@@ -177,8 +177,10 @@ boolean updatedisplaybandselect= false;
 // Playtime
 void setup() 
 {
+#if defined(USE_AD9833) || defined(USE_LEDCONTROL)
     SPI.begin();  
     SPI.setDataMode(SPI_MODE2);    
+#endif
     
 #ifdef USE_LEDCONTROL 
   lc.init();
@@ -346,15 +348,7 @@ void stepToLed( long s)
   lc.setChar(0, 6, 't', false);
   lc.setChar(0, 5, 'e', false);
   lc.setChar(0, 4, 'p', true);  
- 
-//  { (char *)"10Hz", 10 }, 
-//  { (char *)"25Hz", 25 }, 
-//  { (char *)"100Hz", 100 }, 
-//  { (char *)"250Hz", 250 }, 
-//  { (char *)"1KHz", 1000 }, 
-//  { (char *)"2.5KHz", 2500 }, 
-//  { (char *)"10KHz", 10000 }
-
+   
   // Variable value digit 
   int digito1;
   int digito2;
