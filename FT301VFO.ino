@@ -22,6 +22,7 @@
  *  - Arduino Uno R3 
  *  - QRP-Labs Arduino Shields (http://qrp-labs.com/uarduino.html) 
  *  - LCD keypad shield (http://www.hobbytronics.co.uk/arduino-lcd-keypad-shield) 
+ *    (warning : don't use D10 with this shield)
  *    or 
  *  - MAX7219 with analoge button
  *  - Simpel rotary encoder 
