@@ -1,10 +1,15 @@
+/*
+ * AD9833 arduino library
+ * based on : AD9833 Waveform Module vwlowen.co.uk
+ * found on : http://www.vwlowen.co.uk/arduino/AD9833-waveform-generator/AD9833-waveform-generator.htm
+ */
 
 #ifndef AD9833_H
 #define AD9833_H
 #include <Arduino.h>
 #include <stdint.h>
 #include <SPI.h>
-// http://www.vwlowen.co.uk/arduino/AD9833-waveform-generator/AD9833-waveform-generator.htm
+
 
 class AD9833
 {
