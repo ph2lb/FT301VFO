@@ -1,3 +1,9 @@
+/*
+ * AD9833 arduino library
+ * based on : AD9833 Waveform Module vwlowen.co.uk
+ * found on : http://www.vwlowen.co.uk/arduino/AD9833-waveform-generator/AD9833-waveform-generator.htm
+ */
+
 #include "AD9833.h"
 AD9833::AD9833(int dataPin, int clkPin, int csPin)
 {
