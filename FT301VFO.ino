@@ -8,7 +8,7 @@
  * Lex Bolkesteijn 
  * ------------------------------------------------------------------------ 
  * Filename : FT301VFO.ino  
- * Version  : 0.4 (DRAFT)
+ * Version  : 0.5 (DRAFT)
  * ------------------------------------------------------------------------
  * Description : A Arduino DDS based VFO for the Yaesu FT301.
  * ------------------------------------------------------------------------
@@ -17,6 +17,8 @@
  *  - 2016-jan-28 0.2 playing around and added encoder (on A2 and A3)
  *  - 2016-okt-15 0.3 added support for AD9833
  *  - 2016-okt-19 0.4 added support for MAX7219
+ *  
+ *  - 2017-may-8  0.5 added support for SI5351A and updated the rotary encoder support
  * ------------------------------------------------------------------------
  * Hardware used : 
  *  - Arduino Uno R3 
@@ -42,9 +44,10 @@
 
 // use just one of the DDS models (AD9850 or AD9833)
 // #define USE_AD9850 1
-#define USE_AD9833 1
+//#define USE_AD9833 1
+#define USE_SI5351A 1
 // use one or both display options
-#define USE_LEDCONTROL 1
+//#define USE_LEDCONTROL 
 #define USE_LCD 1
 
 #ifdef USE_LCD
@@ -56,6 +59,9 @@
 #ifdef USE_AD9833
 #include "AD9833.h"  
 #endif
+#ifdef USE_SI5351A
+#include "SI5351A.h"
+#endif
 #ifdef USE_LEDCONTROL
 #include "LedControl.h"
 #endif
@@ -66,8 +72,12 @@ AD9850 ad(3, A5, A4); // w_clk, fq_ud, d7
 
 #ifdef USE_AD9833 
 AD9833 ad9833= AD9833(11, 13, A1); // SPI_MOSI, SPI_CLK, SPI_CS
+#endif  
+
+#ifdef USE_SI5351A 
+SI5351A si5351a= SI5351A();
 #endif 
- 
+
 #ifdef USE_LEDCONTROL
 LedControl lc=LedControl(11,13,2,1);  // SPI_MOSI, SPI_CLK, SPI_CS, NR OF DEVICES  NOTE TO MY SELF>> CS is now A1 instead of 12 (12=MISO on UNO)
 #endif
@@ -167,10 +177,31 @@ boolean switchBand = false;
 int currentBandIndex = (int)B40M; // my default band 
 int currentFreqStepIndex = (int)S10; // default 10Hz.
 
+
 // Encoder stuff
 int encoder0PinALast = LOW; 
-#define encoder0PinA A2
-#define encoder0PinB A3
+#define encoderPin1 2
+#define encoderPin2 3
+volatile int lastEncoded = 0;
+volatile long encoderValue = 0;
+long lastencoderValue = 0;
+int lastMSB = 0;
+int lastLSB = 0;
+
+
+#define debugSerial Serial
+
+#define debugPrintLn(...) { if (debugSerial) debugSerial.println(__VA_ARGS__); }
+#define debugPrint(...) { if (debugSerial) debugSerial.print(__VA_ARGS__); }
+
+
+#define STEPUP    60
+#define STEPDOWN  600
+#define BANDUP    200
+#define BANDDOWN  400
+#define SELECT    800
+
+int nrOfSteps = 0;
 
 // LCD stuff
 boolean updatedisplayfreq = false;
@@ -180,6 +211,9 @@ boolean updatedisplaybandselect= false;
 // Playtime
 void setup() 
 {
+   debugSerial.begin(57600); 
+  debugPrintLn(F("setup"));
+  
 #if defined(USE_AD9833) || defined(USE_LEDCONTROL)
     SPI.begin();  
     SPI.setDataMode(SPI_MODE2);    
@@ -196,17 +230,7 @@ void setup()
   lc.setIntensity(0,6);
   /* and clear the display */
   lc.clearDisplay(0);
-#endif
-  
-//  pinMode(1, INPUT);
-//  pinMode(5, INPUT);
-
-  pinMode (encoder0PinA, INPUT);
-  digitalWrite(encoder0PinA, HIGH);  // set pullup on analog pin 2 
-  pinMode (encoder0PinB, INPUT);   
-  digitalWrite(encoder0PinB, HIGH);  // set pullup on analog pin 3 
-
-  encoder0PinALast = LOW;
+#endif 
 
 #ifdef USE_LCD
   // set up the LCD's number of columns and rows:
@@ -243,7 +267,36 @@ void setup()
   updatedisplaystep = true;
   
   updateDisplays();
+
+  debugPrintLn(F("start loop")); 
+ 
+
+  pinMode(encoderPin1, INPUT); 
+  pinMode(encoderPin2, INPUT);
+
+  digitalWrite(encoderPin1, HIGH); //turn pullup resistor on
+  digitalWrite(encoderPin2, HIGH); //turn pullup resistor on
+
+  //call updateEncoder() when any high/low changed seen
+  //on interrupt 0 (pin 2), or interrupt 1 (pin 3) 
+  attachInterrupt(0, updateEncoder, CHANGE); 
+  attachInterrupt(1, updateEncoder, CHANGE);
+} 
+
+
+void updateEncoder(){
+  int MSB = digitalRead(encoderPin1); //MSB = most significant bit
+  int LSB = digitalRead(encoderPin2); //LSB = least significant bit
+
+  int encoded = (MSB << 1) |LSB; //converting the 2 pin value to single number
+  int sum  = (lastEncoded << 2) | encoded; //adding it to the previous encoded value
+
+  if(sum == 0b1101 || sum == 0b0100 || sum == 0b0010 || sum == 0b1011) encoderValue ++;
+  if(sum == 0b1110 || sum == 0b0111 || sum == 0b0001 || sum == 0b1000) encoderValue --;
+
+  lastEncoded = encoded; //store this value for next time
 }
+
 
 // function to set the AD9850 to the VFO frequency depending on bandplan.
 void setFreq()
@@ -258,6 +311,11 @@ void setFreq()
 
 #ifdef USE_AD9833
   ad9833.setFrequency((long)ft301freq);
+#endif
+
+
+#ifdef USE_SI5351A
+  si5351a.CLK0SetFrequency((long)ft301freq);
 #endif
 }
 
@@ -459,6 +517,8 @@ void updateDisplays()
   }
 }
  
+boolean ccw = false;
+boolean cw = false;
 
 
 // the main loop
@@ -469,36 +529,33 @@ void loop()
   updatedisplayfreq = false;
   updatedisplaystep = false;
 
-  boolean ccw = false;
-  boolean cw = false;
-
-  boolean pinA = digitalRead(encoder0PinA);
-  boolean pinB = digitalRead(encoder0PinB);
-
-  if ((encoder0PinALast == LOW) && (pinA == HIGH)) // rising
-  {
-      if (pinB == LOW) 
-      {
-        ccw = true;
-      } 
-      else 
-      {
-        cw = true;
-      }   
-  }
-  encoder0PinALast =pinA ; 
+  nrOfSteps = encoderValue;
+   
+  encoderValue = 0; 
 
   int_fast32_t timepassed = millis(); // int to hold the arduino miilis since startup
   if (((timepassed - prevtimepassed) > 100 && !switchBand ) || 
       ((timepassed - prevtimepassed) > 250 && switchBand ) ||
       (prevtimepassed > timepassed) || 
-      cw || ccw)
-  {
+      nrOfSteps != 0)
+  { 
+    
+    ccw = false;
+    cw = false;
+    if (nrOfSteps != 0)
+    {
+      debugPrintLn(nrOfSteps); 
+      if ( nrOfSteps < 0)
+        ccw = true;
+      else 
+        cw = true;
+    }
+      
     prevtimepassed = timepassed;
     int x;
     // check if a button is pressed
     x = analogRead (buttonAnalogInput);
-    if (x < 60) 
+   if (x < STEPUP) 
     {
       //right 
       if (currentFreqStepIndex < STEPMAX)
@@ -507,7 +564,7 @@ void loop()
         updatedisplaystep = true;
       }
     }
-    else if (x < 200 || cw) 
+    else if (x < BANDUP || cw) 
     {
       // up
       if (switchBand)
@@ -532,7 +589,7 @@ void loop()
         }
       }
     }
-    else if (x < 400 || ccw)
+    else if (x < BANDDOWN || ccw)
     {
       // down
       if (switchBand)
@@ -557,7 +614,7 @@ void loop()
         }
       }
     }
-    else if (x < 600)
+    else if (x < STEPDOWN)
     {
       //left
       if (currentFreqStepIndex > STEPMIN)
@@ -566,7 +623,7 @@ void loop()
         updatedisplaystep = true;
       }
     }
-    else if (x < 800)
+    else if (x < SELECT)
     {
       // select
       if (switchBand)
