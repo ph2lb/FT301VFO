@@ -1,5 +1,5 @@
 # FT301VFO summary
-Arduino based external VFO for Yaesu FT301 with AD9850 or AD9833 DDS with LCD or LED display.
+Arduino based external VFO for Yaesu FT301 with AD9850 or AD9833 DDS or Si53351A with LCD or LED display.
 
 # FT301 VFO background info
 The FT301 uses a VFO in the range from 5Mhz to 5.5Mhz allowing to tune a 500Khz piece of a selected band. That 500Khz is shown on a white (0 - 500Khz) and orange (500Khz - 1000Khz) roller indicator. The band base frequency of the band (e.g. 14Mhz for 20m) is used to determen which roller indicator should be used (e.g. the white one for 20m). The VFO frequency is the reverse, so the range from 0 - 500Khz leads to a VFO frequency from 5.5Mhz - 5Mhz (e.g. for a 0Khz tune frequency the VFO had a freqency of 5.5Mhz).
@@ -21,7 +21,7 @@ Contains the code for a Arduino based external VFO for the Yaesu FT301(D) with A
 # Hardware used : 
 - Arduino Uno R3 
 - DDS one of : 
-  - QRP-Labs Arduino Shields (http://qrp-labs.com/uarduino.html) when using AD9850
+  - QRP-Labs Arduino Shields (http://qrp-labs.com/uarduino.html) when using AD9850 or the Si5351A module from QRP-Labs
   - Simple Arduino experiment shield when using AD9833
 - Display option one (or both) : 
   - LCD keypad shield (http://www.hobbytronics.co.uk/arduino-lcd-keypad-shield) (warning : don't use D10 with this shield) 
